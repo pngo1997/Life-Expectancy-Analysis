@@ -1,11 +1,6 @@
 ---
-title: "Final Project Mai Ngo"
-author: "Mai Ngo"
-date: "2023-08-04"
-output: pdf_document
 ---
 
-# Please read: Homework 3 - Part 1 starts from Line 203 / Page 15. Previous part is what I did to clean up the data. 
 The data set includes 2938 observations and 22 variables. Variables information:  
 
 Country - Names of the countries.  
