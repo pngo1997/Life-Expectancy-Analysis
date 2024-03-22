@@ -1,0 +1,548 @@
+---
+title: "Final Project Mai Ngo"
+author: "Mai Ngo"
+date: "2023-08-04"
+output: pdf_document
+---
+
+# Please read: Homework 3 - Part 1 starts from Line 203 / Page 15. Previous part is what I did to clean up the data. 
+The data set includes 2938 observations and 22 variables. Variables information:  
+
+Country - Names of the countries.  
+Year - Year of observations.  
+Status - whether developed or developing.  
+Life Expectancy - Average time a citizen of any country is expected to live (in years).  
+Adult Mortality - Probability of dying between 15 and 60 years per 1000 population.  
+Infant deaths - Number of Infant Deaths per 1000 population.  
+Alcohol - Alcohol, recorded per capita (15+) consumption (in litres).  
+Percentage expenditure - Expenditure on health as a percentage of GDP per capita (%).  
+Hepatitis B - Immunization coverage among 1-year old (%).   
+Measles - Number of reported cases per 1000 population.  
+BMI - Average Body Mass Index of entire population.  
+Under-five deaths - Number of under-five deaths per 1000 population.  
+Polio - Immunization coverage among 1-year old (%).  
+Total expenditure - Government expenditure on health industry as a percentage of total government expenditure (%).  
+Diphtheria - Immunization coverage among 1-year old (%).  
+HIV/AIDS - Deaths per 1000 live births HIV/AIDS (0-4 years).  
+GDP - Gross Domestic Product per capita (in current USD).  
+Population - Population of the country.  
+Thinness 10-19 years - Prevalence of thinness among children and adolescents for Age 10 to 19 (%).  
+Thinness 5-9 years - Prevalence of thinness among children for Age 5 to 9(%).  
+Income composition of resources - Human Development Index in terms of income composition of resources (index ranging from 0 to 1).  
+Schooling - Number of years of Schooling.  
+
+### Read explore data.  
+Set Working Directory.  
+```{r}
+setwd("C:/Users/maimu/OneDrive/Documents/DePaul/DSC 424")
+```
+
+Read data sets.
+Source: Population - https://data.worldbank.org/indicator/SP.POP.TOTL?end=2015&start=2000  
+GDP per capita - https://data.worldbank.org/indicator/NY.GDP.PCAP.CD  
+```{r}
+expectancyData <- read.csv(file="Life Expectancy Data.csv", header=TRUE, sep=",")
+populationData <- read.csv(file="World Population.csv", header=TRUE, sep=",")
+gdpData <- read.csv(file="World GDP.csv", header=TRUE, sep=",")
+```
+
+### Life Expectancy Data.
+```{r}
+head(expectancyData)
+```
+
+Look at original expectancyData: GDP and Population have 448 and 652 missing values, respectively. Attempted to apply Listwise deletion which led to 43% data loss, this would loose the original data characteristics. 
+Approach: Fill in missing values.  
+```{r}
+summary(expectancyData)
+```
+
+### Population Data.
+```{r}
+head(populationData)
+```
+
+Re-arrange population data same format as expectancy data.
+```{r}
+library(tidyr)
+library(dplyr)
+#Rename year columns.
+populationData_newCol_names <- c("Country.Name", paste0("Year", 2000:2015))
+names(populationData) <- populationData_newCol_names
+#Convert to same format of original life expectancy data.
+populationData_long <- pivot_longer(populationData, cols = starts_with("Year"),
+                                    names_to = "Year", values_to = "Population")
+populationData_long$Year <- as.numeric(gsub("Year", "", populationData_long$Year))
+populationData_long <- populationData_long %>% arrange(Country.Name, desc(Year))
+head(populationData_long)
+```
+
+Perform left join, replace original 'Population' column with World Bank population data.
+```{r}
+#Rename 'Country.Name' column in populationData_long to 'Country'.
+names(populationData_long)[names(populationData_long) == "Country.Name"] <- "Country"
+expectancyData2 <- left_join(expectancyData, populationData_long, by = c("Country", "Year"))
+expectancyData2 <- expectancyData2[, !(names(expectancyData2) %in% c('Population.x'))]
+colnames(expectancyData2)[colnames(expectancyData2) == 'Population.y'] = 'Population'
+head(expectancyData2)
+```
+
+Check missing values with new  Population column. 
+2 observations with missing values. Cook Islands and Niue don't have data range 2000-2015.
+```{r}
+expectancyData2[is.na(expectancyData2$Population), ]
+```
+
+Hence, exclude these two observations. Get dimension. Using expectancyData2 forward.  
+```{r}
+expectancyData2 <- expectancyData2 %>% filter(Country != 'Cook Islands' & Country != 'Niue')
+dim(expectancyData2)
+```
+
+### GDP per capita Data.
+```{r}
+head(gdpData)
+```
+
+Re-arrange population data same format as expectancy data.
+```{r}
+#Rename year columns.
+gdpData_newCol_names <- c("Country.Name", paste0("Year", 2000:2015))
+names(gdpData) <- gdpData_newCol_names
+#Convert to same format of original life expectancy data.
+gdpData_long <- pivot_longer(gdpData, cols = starts_with("Year"),
+                            names_to = "Year", values_to = "GDP")
+gdpData_long$Year <- as.numeric(gsub("Year", "", gdpData_long$Year))
+gdpData_long <- gdpData_long %>% arrange(Country.Name, desc(Year))
+head(gdpData_long)
+```
+
+Perform left join, replace original 'GDP' column with World Bank GDP per capita data.
+```{r}
+#Rename 'Country.Name' column in gdpData_long to 'Country'.
+names(gdpData_long)[names(gdpData_long) == "Country.Name"] <- "Country"
+expectancyData3 <- left_join(expectancyData2, gdpData_long, by = c("Country", "Year"))
+expectancyData3 <- expectancyData3[, !(names(expectancyData3) %in% c('GDP.x'))]
+colnames(expectancyData3)[colnames(expectancyData3) == 'GDP.y'] = 'GDP'
+head(expectancyData3)
+```
+
+Check missing values with new  GDP column. 
+Several observations within a country have missing values. 
+```{r}
+head(expectancyData3[is.na(expectancyData3$GDP), ], 10)
+```
+
+Removing Democratic People's Republic of Korea due to complete missing values in both Population and GDP.  
+This is a good political POV since North Korea tends not to share country stats/statement globally.  
+Get dimension.  
+```{r}
+expectancyData3 <- expectancyData3 %>% filter(Country != "Democratic People's Republic of Korea")
+dim(expectancyData3)
+```
+
+Since there are still GDP missing values within a country. Also out of available time range (2000-2015). Hence, apply extrapolation to fill in missing values. Use the known 'Year' values and perform linear extrapolation to estimate the missing GDP values based on the given 'GDP' values.
+```{r}
+library(Hmisc)
+expectancyData4 = expectancyData3
+expectancyData4 <- expectancyData4 %>% group_by(Country) %>%
+  mutate(GDP = if (any(is.na(GDP))) approxExtrap(x = Year[!is.na(GDP)], y = GDP[!is.na(GDP)], xout = Year, method = "linear")$y else GDP) %>% ungroup()
+head(expectancyData4)
+```
+
+Check if there is any missing value within GDP col still.  
+No missing value.
+```{r}
+expectancyData4[is.na(expectancyData4$GDP), ]
+```
+
+Get a country sample to see how extrapolation works. Sample country Somalia.  
+GDP value extended nicely, given available data from 2013-2015.  
+```{r}
+expectancyData4 %>% filter(Country == 'Somalia')
+```
+
+Using expectancyData4 moving forward. Still have 1403 missing values.
+```{r}
+sum(is.na(expectancyData4))
+```
+
+Take a look at summary, other numerical attributes have missing values (but not significant count). 
+```{r}
+summary(expectancyData4)
+```
+
+Get column names. 
+```{r}
+colnames(expectancyData4)
+```
+
+For each country, replace missing values within each attribute by its median (calculated from available data).  
+```{r}
+expectancyData5 <- expectancyData4
+
+median_replaceCols <- c('Life.expectancy', 'Adult.Mortality', 'Alcohol', 'Hepatitis.B', 'BMI',
+                      'Polio', 'Total.expenditure', 'Diphtheria', 'thinness..1.19.years',
+                      'thinness.5.9.years', 'Income.composition.of.resources', 'Schooling')
+
+expectancyData5 <- expectancyData5 %>%
+  group_by(Country) %>%
+  mutate_at(vars(all_of(median_replaceCols)), ~ ifelse(is.na(.), median(., na.rm = TRUE), .)) %>%
+  ungroup()
+head(expectancyData5)
+```
+
+Using expectancyData5 moving forward. Still have 589 missing values.  
+```{r}
+sum(is.na(expectancyData5))
+```
+
+Get summary to see which column still have missing values.
+```{r}
+summary(expectancyData5)
+```
+
+Take a look at missing values of 'Hepatitis.B'.  
+```{r}
+expectancyData5[is.na(expectancyData5$Hepatitis.B), ]
+```
+
+In this case we have some country doesn't have complete data for certain attribute.
+Apply Listwise deletion, assign to expectancyData6. Final data have 2608 observations, 22 columns. 
+Remove 11.23% data from the original data set.
+```{r}
+expectancyData6 <- na.omit(expectancyData5)
+dim(expectancyData6)
+```
+
+Double confirmation missing values: None.
+```{r}
+sum(is.na(expectancyData6))
+```
+
+### Export expectancyData6 to a csv file. 
+```{r}
+#write.csv(expectancyData6, file = "Final_Life ExpectancyData.csv", row.names = FALSE)
+```
+
+
+# Homework 3 - Part 1 - Logistic regression. 
+Research question: Identify strong determinants that can distinguish between developing and developed countries? Apply logistic regression model to find these determinants, given developed country coded as '1' and developing country coded as '0'. 
+
+Get data to work with: 2608 observations, 22 attributes.   
+```{r}
+head(expectancyData6)
+```
+
+Remove 'Country' and 'Year' attribute. Not relevant to the analysis.
+```{r}
+expectancyData7 <- subset(expectancyData6, select = -c(Country, Year))
+head(expectancyData7)
+```
+
+### Correlation.  
+Get pairs of high correlation, greater than |0.7|.
+There are 14 pairs of high correlation, we will use this to exclude attributes from the model later.
+```{r}
+numData = expectancyData7 %>% select_if(is.numeric)
+numData_corr <- cor(numData, method = "spearman")
+high_corr_pairs <- which(abs(numData_corr) > 0.85, arr.ind = TRUE)
+high_corr_pairs <- high_corr_pairs[high_corr_pairs[, 1] < high_corr_pairs[, 2], ]
+# Extract the column names from the matrix index
+high_corr_names <- data.frame(attr1 = rownames(numData_corr)[high_corr_pairs[, 1]],
+                              attr2 = colnames(numData_corr)[high_corr_pairs[, 2]],
+                              correlation = numData_corr[high_corr_pairs])
+
+high_corr_names
+```
+
+Eigenvectors of Correlation Matrix.  
+We are also using eigenvectors to detect multi-collinearity. Distinct difference between the largest and smallest eigenvalues. Hence, at this point we can further assume there is multi-collinearity.
+```{r}
+eigenvaluesCorr <- eigen(numData_corr)$values
+eigenvaluesCorr
+smallest_eigenvalue <- min(eigenvaluesCorr)
+largest_eigenvalue <- max(eigenvaluesCorr)
+
+print(paste("Smallest Eigenvalue:", smallest_eigenvalue))
+print(paste("Largest Eigenvalue:", largest_eigenvalue))
+```
+
+### Predicted value.  
+Predicted value: Convert 'Status' column to dummy variable of 0 and 1.  
+'1' coded as developed and '0' coded as developing.  
+```{r}
+expectancyData8 <- expectancyData7 %>% mutate(Developed.Country = ifelse(Status == "Developing", 0, 1))
+expectancyData8 <- expectancyData8 %>% select(-Status)
+head(expectancyData8)
+```
+
+### Distribution visualization.  
+#### Life expectancy distribution between developed and developing countries.   
+On average, developed country has higher life expectancy of 78.94 years compared to developing country of 67.4 years. Correspondingly, majority of people in developing country have life expectancy between 62 and 74 years, while higher for developed countries from 76 to 81.5 years. This perhaps associated to better social-economic factors in developed countries.    
+```{r}
+lifeExpect_stat <- expectancyData8 %>% group_by(Developed.Country) %>%
+  summarise(Min_lifeExpectancy = min(Life.expectancy),
+            Avg_lifeExpectancy = mean(Life.expectancy),
+            Max_lifeExpectancy = max(Life.expectancy),
+            Q1_lifeExpectancy = quantile(Life.expectancy, 0.25),
+            Q3_lifeExpectancy = quantile(Life.expectancy, 0.75))
+lifeExpect_stat
+```
+
+Developed country has higher life expectancy than developing country. Especially, minimum life expectancy in developing country is significantly small compared to developed countries: 36.3 and 69.9 years, respectively. This is a good topic to explore further, perhaps breakdown data to continents to explore further.
+```{r}
+library(ggplot2)
+ggplot(expectancyData8, aes(x = Life.expectancy, fill = factor(Developed.Country))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribution of Life Expectancy", x = "Life Expectancy", y = "Density") +
+  scale_fill_manual(values = c("0" = "red", "1" = "blue"), labels = c("Developing", "Developed")) +  
+  theme_minimal()
+```
+
+#### Population distribution between developed and developing countries. 
+Developing country China has significantly highest maximum population of 1,379,860,000, compared to developed country Germany with 82,534,176 people. The average population of developing country also 2.5% higher than developed country. Noticeably, majority of developing country has population between 1.8 to 25 millions, while it is more controlled for developed country of 4 to 20 millions.   
+```{r}
+population_stat <- expectancyData8 %>% group_by(Developed.Country) %>%
+  summarise(Min_population = min(Population),
+            Avg_population = mean(Population),
+            Max_population = max(Population),
+            Q1_population = quantile(Population, 0.25),
+            Q3_population = quantile(Population, 0.75))
+population_stat
+```
+
+Population distribution is very right skewed. We will need to apply transformation.  
+```{r}
+ggplot(expectancyData8, aes(x = Population, fill = factor(Developed.Country))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribution of Population", x = "Population", y = "Density") +
+  scale_fill_manual(values = c("0" = "deeppink2", "1" = "darkgreen"), labels = c("Developing", "Developed")) +
+  theme_minimal()
+```
+
+Apply log transformation on population. The population distribution looks much better now, we will using log(Population) for the model.
+```{r}
+expectancyData8$logPopulation <- log(expectancyData8$Population)
+ggplot(expectancyData8, aes(x = logPopulation, fill = factor(Developed.Country))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribution of log(Population)", x = "log(Population)", y = "Density") +
+  scale_fill_manual(values = c("0" = "deeppink2", "1" = "darkorange"), labels = c("Developing", "Developed")) +
+  theme_minimal()
+```
+
+#### HIV.AIDS distribution between developed and developing countries. 
+All developed country has consistent low - same number of HIV.AIDS death: 1 person per 1,000 live births. While on average in developing country is 2 person, maximum is 50 person. This distinguish stats will cause perfect separation.
+```{r}
+HIV.AIDS_stat <- expectancyData8 %>% group_by(Developed.Country) %>%
+  summarise(Min_HIV.AIDS = min(HIV.AIDS),
+            Avg_HIV.AIDS = mean(HIV.AIDS),
+            Max_HIV.AIDS = max(HIV.AIDS),
+            Q1_HIV.AIDS = quantile(HIV.AIDS, 0.25),
+            Q3_HIV.AIDS = quantile(HIV.AIDS, 0.75))
+HIV.AIDS_stat
+```
+
+#### Infant deaths distribution between developed and developing countries. 
+Developed countries has significantly low number of infant deaths compared to developing countries, given maximum values of 4 and 1,800 deaths, respectively. This would cause perfect separation. 
+```{r}
+infantDeaths_stat <- expectancyData8 %>% group_by(Developed.Country) %>%
+  summarise(Min_infantDeaths = min(infant.deaths),
+            Avg_infantDeaths = mean(infant.deaths),
+            Max_infantDeaths = max(infant.deaths),
+            Q1_infantDeaths = quantile(infant.deaths, 0.25),
+            Q3_infantDeaths = quantile(infant.deaths, 0.75))
+infantDeaths_stat
+```
+### Train-Test split.  
+### Data imbalance: 352 values for developed countries / 2256 values for developing countries. 
+Thus, balanced class ratio of 13.5% for developed countries and 86.5% for developing countries in both the testing and training data. 
+```{r}
+#Get predicted value data count. 
+table(expectancyData8$Developed.Country)
+```
+
+Split data into train and test sets.
+```{r}
+library(caret)
+x <- expectancyData8[, -which(names(expectancyData8) == "Developed.Country")]
+y <- expectancyData8$Developed.Country
+set.seed(2023)
+trainIndex <- createDataPartition(y, p = 0.7, list = FALSE)
+x_train <- x[trainIndex, ]
+y_train <- y[trainIndex]
+x_test <- x[-trainIndex, ]
+y_test <- y[-trainIndex]
+```
+
+Count of classes in training and testing data. Qualified given original data ratio.  
+Train data: Developing (0): 86.5% | Developed (1): 13.5%  
+Test data: Developing (0): 86.5% | Developed (1): 13.5%  
+```{r}
+train_classCounts <- table(y_train)
+print(train_classCounts)
+
+test_classCounts <- table(y_test)
+print(test_classCounts)
+```
+
+### First full logistic model to obtain VIF values.  
+Check for multi-collinearity.  
+```{r}
+library(glmnet)
+library(car)
+logisticReg <- glm(y_train ~ . - Population, family = binomial(link = 'logit'), data = cbind(y_train, x_train))
+VIF <- vif(logisticReg)
+print("\n")
+print(VIF)
+```
+
+From the first model we receive 2 warnings: glm.fit: algorithm did not converge, and Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred. 1st warning indicates that output parameters are not optimal (combination of the input parameters are not stable). 2nd warning indicates that one of the attributes can perfectly separate the predicted value which makes the model unreliable.  
+Given above VIF values and correlation scores, there is multi-collinearity issue. We also have attributes with high p-values greater than 0.05. Thus, we will start to minimize the model in terms of number of attributes. 
+```{r}
+summary(logisticReg)
+```
+
+### Smaller logistic models.
+Given high count of numerical attributes. We will break down these attributes into smaller groups that represent as contributors to a country's life expectancy: Socioeconomic indicators, Health Development, Mortality, and Immunization. Run logistic regression model for each group, account multi-collinearity, and retain only significant attribute(s) based on p-value. Then we will run an accumulate logistic regression with all significant attributes.  
+
+### Socioeconomic indicators: Life Expectancy, Alcohol, GDP, and Schooling are significant with P-value < 0.05  
+Life Expectancy - Average time a citizen of any country is expected to live(in years).  
+Alcohol - Alcohol, recorded per capita (15+) consumption (in litres).  
+BMI - Average Body Mass Index of entire population.  
+GDP - Gross Domestic Product per capita (in USD).  
+Population - Population of the country.    
+Schooling - Number of years of Schooling.      
+```{r}
+logisticReg2 <- glm(y_train ~ Life.expectancy + Alcohol + BMI + GDP + logPopulation + Schooling,
+                    family = binomial(link = 'logit'),
+                    data = cbind(y_train, x_train))
+summary(logisticReg2)
+```
+
+### Health Development: Thinness 10-19 years and Income composition of resources are significant with p-value < 0.05
+Percentage expenditure - Expenditure on health as a percentage of GDP per capita (%).  
+Total expenditure - Government expenditure on health industry as a percentage of total government expenditure(%).  
+Thinness 10-19 years - Prevalence of thinness among children and adolescents for Age 10 to 19 (% ).    
+Thinness 5-9 years - Prevalence of thinness among children for Age 5 to 9(%).  
+Income composition of resources - Human Development Index in terms of income composition of resources (index ranging from 0 to 1).  
+Thinness 10-19 years and 5-9 years are highly positive correlated 0.94. Remove Thinness 5-9 years due to higher VIF value of 6.47.
+```{r}
+logisticReg3 <- glm(y_train ~ percentage.expenditure + Total.expenditure + thinness..1.19.years + Income.composition.of.resources,
+                    family = binomial(link = 'logit'),
+                    data = cbind(y_train, x_train))
+summary(logisticReg3)
+```
+
+### Mortality: Adult.Mortality and Measles are signficant with p-value < 0.05.
+Adult Mortality - Probability of dying between 15 and 60 years per 1000 population.  
+Infant deaths - Number of Infant Deaths per 1000 population.  
+Measles - Number of reported cases per 1000 population.   
+Under-five deaths - Number of under-five deaths per 1000 population.    
+HIV/AIDS - Deaths per 1000 live births HIV/AIDS (0-4 years).  
+All developed country has HIV.AIDS score = 0.1, extremely small number of infant deaths, under-five deaths (< 5) compared to wide range of developing countries. This could cause perfect separation, exclude from the model.  
+Infant deaths and Under-five deaths are extremely positive correlated at 0.99.
+```{r}
+logisticReg4 <- glm(y_train ~ Adult.Mortality + Measles,
+                    family = binomial(link = 'logit'), data = cbind(y_train, x_train))
+summary(logisticReg4)
+```
+
+### Immunization: Polio is significant with p-value < 0.05.
+Hepatitis B - Immunization coverage among 1-year old (%).  
+Polio - Immunization coverage among 1-year old (%).  
+Diphtheria - Immunization coverage among 1-year old (%).
+Polio and Diphtheria are highly positive correlated at 0.931. Exclude Diphtheria due to higher VIF value of 1.26.
+```{r}
+logisticReg5 <- glm(y_train ~ Hepatitis.B + Polio, family = binomial(link = 'logit'),
+                    data = cbind(y_train, x_train))
+summary(logisticReg5)
+```
+
+### Logistic regression with significant attribute from each category.
+Check for correlation between significant attributes. 
+```{r}
+significantAttr <- c("Life.expectancy", "Alcohol", "GDP", "Schooling", "thinness..1.19.years", 
+                     "Income.composition.of.resources", "Measles", "Adult.Mortality", "Polio")
+
+significantAttr_data <- expectancyData8[, significantAttr]
+
+significantAttr_cor <- cor(significantAttr_data, method = "spearman")
+significantAttr_high_corr_pairs <- which(abs(significantAttr_cor) > 0.7, arr.ind = TRUE)
+significantAttr_high_corr_pairs <- significantAttr_high_corr_pairs[significantAttr_high_corr_pairs[, 1] < significantAttr_high_corr_pairs[, 2], ]
+significantAttr_high_corr_names <- data.frame(attr1 = rownames(significantAttr_cor)[significantAttr_high_corr_pairs[, 1]],
+                                   attr2 = colnames(significantAttr_cor)[significantAttr_high_corr_pairs[, 2]],
+                                   correlation = significantAttr_cor[significantAttr_high_corr_pairs])
+
+significantAttr_high_corr_names
+```
+
+Remove Income composition of resources and Schooling due to high correlation.  
+```{r}
+logisticReg6 <- glm(y_train ~ Life.expectancy + Alcohol + GDP + thinness..1.19.years + Measles + Adult.Mortality + Polio + under.five.deaths,
+                    family = binomial(link = 'logit'),
+                    data = cbind(y_train, x_train))
+summary(logisticReg6)
+```
+
+### Final model.
+Remove Measles due to insignificance, p-value > 0.05. 
+The final model has all significant attribute with p-values less than 0.05. There is no warning about perfect separation. Life expectancy, Alcohol consumption, GDP per capita, and Polio immunization have positive relationships with the odds of a country being developed. And vice versa for Pprevalence thinness of children and adult mortality. 
+Akaike Information Criterion (AIC) value of 592.38. Null deviance of 1443.50 compared to much lower residual deviance of 578.38, indicates that the model is a good fit for the data. 
+Coefficient interpretation example: When life expectancy increase by one year, 1.512e-01, holdings other variable constant, the odds of a country being developed increases by a factor of exp(0.1512), or 16.3%.
+```{r}
+logisticReg7 <- glm(y_train ~ Life.expectancy + Alcohol + GDP + thinness..1.19.years + Adult.Mortality + Polio,
+                    family = binomial(link = 'logit'), data = cbind(y_train, x_train))
+summary(logisticReg7)
+```
+
+### Confusion matrix and ROC curve for evaluation. 
+Area Under the Curve (AUC) value of 0.9761, indicates that the model performs well in classifying developed/developing countries. ROC curve very close to the upper-left corner of the plot.  
+```{r}
+library(pROC)
+library(caret)
+predictedProbs <- predict(logisticReg7, newdata = x_test, type = "response")
+
+rocCurve <- roc(y_test, predictedProbs)
+aucValue <- auc(rocCurve)
+
+print(aucValue)
+plot(rocCurve, main = "ROC Curve", col = "deeppink1")
+```
+
+Confusion matrix: True positive - correctly predicted 652 developing countries - coded as '0'. Model accuracy is 94.25% given 95% Confidence Interval of 92.38 - 95.77. Sensitivity indicates that 96.45% of developing country were predicted as it is. Specificity indicates that 80.19% of developed countries were accurately predicted as it is. F1-score of 0.966 indicates that 96.6% of times the model makes correct predictions. 
+```{r}
+predictedClasses <- factor(ifelse(predictedProbs > 0.5, 1, 0), levels = c(0, 1))
+y_test <- factor(y_test, levels = c(0, 1))
+
+confusionMatrix <- confusionMatrix(data = predictedClasses, reference = y_test)
+print(confusionMatrix)
+
+accuracy <- confusionMatrix$overall["Accuracy"]
+precision <- confusionMatrix$byClass["Pos Pred Value"]
+recall <- confusionMatrix$byClass["Sensitivity"]
+specificity <- confusionMatrix$byClass["Specificity"]
+f1_score <- confusionMatrix$byClass["F1"]
+
+print(paste("Precision:", precision))
+print(paste("F1-Score:", f1_score))
+```
+
+### Logistic Curve. 
+Given a country with life expectancy of 80 year-old, there is a 53% chance that this country is developed.
+```{r}
+ggplot(expectancyData8, aes(x = Life.expectancy, y = Developed.Country)) +
+  geom_point() +
+  labs(title = 'Scatterplot with Fitted Logistic Curve') +
+  theme_minimal() +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = FALSE, col = "darkorange1")
+```
+
+### Conclusion:
+1) From analysis, HIV.AIDS and Infant deaths can significantly distinguish developed and developing countries. 
+2) From logistic model, Life expectancy, Alcohol consumption, Children Age 10 to 19 thinness, GDP per capita, Adult mortality, and Immunization coverage can determine probability of a country is developing or developed. 
+3) Globally, on average a person can live up to 69 year-old.  
+4) Developing countries has much fluctuated and wider range of population given China of over 1.3 billion people, Germany has highest population in developed country of 82.5 millions.  
+5) Developed country has significantly low - same number of HIV.AIDS death: 1 person per 1,000 live births. Also have low number of infant deaths of 1 to 4 with average of 0.6.
+6) In terms of life expectancy, in order for a country to be classify as developed (53% chance), life expectancy needs to be at least 79 year-old.
+
