@@ -1,11 +1,3 @@
-# Jenish Dobariya
-# WHO life expectancy data analysis
-
-# URL for data: 
-
-# Setting the directory
-setwd("C:/Users/maimu/OneDrive/Documents/DePaul/DSC 424")
-
 # Loading necessary libraries
 library(Hmisc) #Describe Function
 library(psych) #Multiple Functions for Statistics and Multivariate Analysis
